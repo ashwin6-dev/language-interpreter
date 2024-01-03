@@ -3,9 +3,9 @@ import java.io.File
 
 fun main(args: Array<String>) {
     val src = File(args[0]).readText()
-    val t = Tokenizer(src)
-    val tokens = t.Tokenize()
-    val p = Parser(tokens)
-    val n = p.Parse()
-    val env = Exec(n, stdEnv)
+    val tokenizer = Tokenizer(src)
+    val tokens = tokenizer.Tokenize()
+    val parser = Parser(tokens)
+    val tree = parser.Parse()
+    val env = Exec(tree, stdEnv)
 }
