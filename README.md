@@ -9,3 +9,4 @@ Includes:
 - If statements
 - While loops
 - For loops
+- Suitable error messages (TODO: improve error message quality)
