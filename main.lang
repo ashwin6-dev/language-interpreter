@@ -1,0 +1,8 @@
+s = ""
+
+while length(s) < 20 {
+    s = s + "a"
+    println (s)
+}
+
+println (length(s))
