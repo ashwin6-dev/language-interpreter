@@ -2,7 +2,8 @@ package Interpreter
 
 val stdEnv: Env = mutableMapOf(
     "println" to StdFun(::Println),
-    "length" to StdFun(::Length)
+    "length" to StdFun(::Length),
+    RETURN to Null()
 )
 
 fun Println(args: List<Node>, env: Env): Env {

@@ -1,8 +1,17 @@
-s = ""
+fac = fun (n) {
+    if (n <= 1) {
+        return n
+    }
 
-while length(s) < 20 {
-    s = s + "a"
-    println (s)
+    return n * fac(n - 1)
 }
 
-println (length(s))
+n = 0
+
+while (n < 10) {
+    f = fac(n)
+    println (f, fun (n) { return n * 2 } (f))
+    n = n + 1
+}
+
+println ("done")

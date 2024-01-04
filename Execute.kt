@@ -22,19 +22,29 @@ fun OuterScope(outerEnv: Env, innerEnv: Env): Env {
     }).toMap().toMutableMap()
 }
 
-fun Exec(node: Node, env: Env): Env = when (node) {
-    is Body -> ExecBody(node, env)
-    is Assign -> ExecAssign(node, env)
-    is WhileNode -> ExecWhile(node, env)
-    is IfNode -> ExecIf(node, env)
-    is ForNode -> ExecFor(node, env)
-    is Number, is Str, is ListNode, is FunNode, is Ident, is Apply, is BinOp -> ExecReturn(node, env)
-    else -> env
+fun Exec(node: Node, env: Env): Env {
+    val retValue = env.get(RETURN)
+
+    if (retValue != null && !(retValue is Null)) return env
+
+    return when (node) {
+        is Body -> ExecBody(node, env)
+        is Assign -> ExecAssign(node, env)
+        is WhileNode -> ExecWhile(node, env)
+        is IfNode -> ExecIf(node, env)
+        is ForNode -> ExecFor(node, env)
+        is Number, is Str, is ListNode, is FunNode, is Ident, is Apply, is BinOp -> {
+            Eval(node, env)
+            env
+        }
+        is ReturnNode -> ExecReturn(node, env)
+        else -> env
+    }
 }
 
-fun ExecReturn(node: Node, env: Env): Env {
+fun ExecReturn(node: ReturnNode, env: Env): Env {
     val envCopy = env.toMutableMap()
-    val value = Eval(node, env)
+    val value = Eval(node.expr, env)
 
     envCopy.put(RETURN, value)
 
@@ -86,6 +96,19 @@ fun ExecAssign(node: Assign, env: Env): Env {
     return newEnv
 }
 
+fun ExecFun(node: FunNode, args: List<Node>, env: Env): Env {
+    val body = node.body
+    val evalArgs = args.map({ Eval(it, env) })
+
+    if (evalArgs.size == node.params.size) {
+        return Exec(body, JoinEnvs(env, node.params.zip(evalArgs).toMap().toMutableMap()))
+    }
+
+    RaiseError("function requires ${node.params.size} arguments but received ${evalArgs.size}")
+
+    return env
+}
+
 fun IsTrue(node: Node) = when(node) {
     is Bool -> node.b
     else -> false
@@ -112,12 +135,12 @@ fun GetReturn(env: Env): Node {
 fun EvalApply(node: Apply, env: Env): Node {
     val f = Eval(node.f, env)
     val envCopy = env.toMutableMap()
-    envCopy.put(RETURN, Node())
+    //envCopy.put(RETURN, Null())
 
     return when (f) {
         is FunNode ->
-            GetReturn(Exec(f.body, JoinEnvs(env, f.params.zip(node.args.map({ Eval(it, env) })).toMap().toMutableMap())))
-        is StdFun -> GetReturn(f.f(node.args.map({ Eval(it, env) }), env))
+            GetReturn(ExecFun(f, node.args, env))
+        is StdFun -> GetReturn(f.f(node.args.map { Eval(it, env) }, env))
         else -> throw Error("not function")
     }
 }

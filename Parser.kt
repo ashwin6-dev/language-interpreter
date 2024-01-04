@@ -1,12 +1,5 @@
 package Interpreter
 
-import kotlin.system.exitProcess
-
-fun RaiseError(msg: String) {
-    println (msg)
-    exitProcess(0)
-}
-
 class ParseState(val success: Boolean, val node: Node = Node(), val error : String = "")
 typealias ParseFunction = () -> ParseState
 
@@ -29,7 +22,7 @@ class Parser(val tokens: List<Token>) {
 
     fun Value(value: String, fmap: (Token) -> Node = { token -> Node() }): ParseState {
         if (!PeekValue(value)) {
-            val error = if (index < tokens.size) "line ${tokens[index].line}: unexpected value ${tokens[index].value}. expected $value" else "expected $value"
+            val error = if (index < tokens.size) "line ${tokens[index].line}: unexpected value ${tokens[index].value}. expected $value" else "line ${tokens[index - 1].line}: expected $value"
             return ParseState(false, error = error)
         }
 
@@ -40,7 +33,7 @@ class Parser(val tokens: List<Token>) {
 
     fun Type(type: String, fmap: (Token) -> Node = { token -> Node() }): ParseState {
         if (!PeekType(type)) {
-            val error = if (index < tokens.size) "line ${tokens[index].line}: unexpected token ${tokens[index].type}. expected $type" else "expected $type"
+            val error = if (index < tokens.size) "line ${tokens[index].line}: unexpected token ${tokens[index].type}. expected $type" else "line ${tokens[index - 1].line}: expected $type"
             return ParseState(false, error = error)
         }
 
@@ -106,25 +99,25 @@ class Parser(val tokens: List<Token>) {
     }
 
     fun List(): ParseState {
-        return MayExpect({ Value("[") }, fun (_: ParseState): ParseState {
+        return MayExpect({ Value("[") }) {
             val elems = SepBy(",", ::Expr)
-            return Expect({ Value("]") }) { ParseState(true, ListNode(elems) ) }
-        })
+            Expect({ Value("]") }) { ParseState(true, ListNode(elems) ) }
+        }
     }
 
     fun Fun(): ParseState {
         return MayExpect({ Value("fun") }) {
-            Expect({ Value("(") }, fun (_: ParseState): ParseState {
+            Expect({ Value("(") }) {
                 val initialIndex = index
                 SepBy(",", { Type("identifier", { token -> Ident(token.value) }) })
                 val params = tokens.subList(initialIndex, index).map { it.value }.filter { it != "," }
 
-                return Expect({ Value(")") }) {
+                Expect({ Value(")") }) {
                     Expect(::ParseBlock) { block ->
                         ParseState(true, FunNode(params, block.node))
                     }
                 }
-            })
+            }
         }
     }
 
@@ -164,7 +157,7 @@ class Parser(val tokens: List<Token>) {
     }
 
     fun ParseBinOp(op: String, SubExpr: ParseFunction): ParseState {
-        return MayExpect(SubExpr, fun (state: ParseState): ParseState {
+        return MayExpect(SubExpr) { state ->
             var left = state
 
             while (left.success && Value(op).success) {
@@ -173,8 +166,8 @@ class Parser(val tokens: List<Token>) {
                 }
             }
 
-            return left
-        })
+            left
+        }
     }
 
     fun Div(): ParseState = ParseBinOp("/", ::FunCall)
@@ -191,18 +184,18 @@ class Parser(val tokens: List<Token>) {
     fun Expr(): ParseState = Or()
 
     fun ParseAssign(): ParseState {
-        return MayExpect({ Type("identifier") }, fun (_: ParseState): ParseState {
+        return MayExpect({ Type("identifier") }) {
             val id = tokens[index - 1].value
-            return MayExpect({ Value("=") }) {
+            MayExpect({ Value("=") }) {
                 Expect(::Expr) { expr ->
                     ParseState(true, Assign(id, expr.node))
                 }
             }
-        })
+        }
     }
 
     fun ParseNext(): ParseState {
-        return Expect({ OneOf(::ParseIf, ::ParseWhile, ::ParseFor, ::ParseAssign, ::Expr) }) { state ->
+        return Expect({ OneOf(::ParseIf, ::ParseWhile, ::ParseFor, ::ParseReturn, ::ParseAssign, ::Expr) }) { state ->
             state
         }
     }
@@ -210,16 +203,16 @@ class Parser(val tokens: List<Token>) {
     fun ParseBlock(): ParseState {
         var list: List<Node> = listOf()
 
-        Expect({ Value("{") }, fun (stateA: ParseState): ParseState {
+        Expect({ Value("{") }) {
             while (!PeekValue("}")) {
-                Expect({ ParseNext() }, fun (stateB: ParseState): ParseState {
+                Expect({ ParseNext() }) { stateB ->
                     list += stateB.node
-                    return stateB
-                })
+                    stateB
+                }
             }
 
-            return Expect({ Value("}") }) { stateC -> stateC }
-        })
+            Expect({ Value("}") }) { stateC -> stateC }
+        }
 
         return ParseState(true, Body(list))
     }
@@ -237,14 +230,22 @@ class Parser(val tokens: List<Token>) {
     fun ParseFor(): ParseState {
         return MayExpect({ Value("for") }) {
             Expect({ Type("identifier") }) {
-                Expect({ Value("in") }, fun (_: ParseState): ParseState {
+                Expect({ Value("in") }) {
                     val id = tokens[index - 2].value
-                    return Expect(::Expr) { iter ->
+                    Expect(::Expr) { iter ->
                         Expect(::ParseBlock) { block ->
                             ParseState(true, ForNode(id, iter.node, block.node))
                         }
                     }
-                })
+                }
+            }
+        }
+    }
+
+    fun ParseReturn(): ParseState {
+        return MayExpect({ Value("return") }) {
+            Expect(::Expr) { expr ->
+                ParseState(true, ReturnNode(expr.node))
             }
         }
     }
@@ -267,10 +268,10 @@ class Parser(val tokens: List<Token>) {
         var nodes: List<Node> = listOf()
 
         while (index < tokens.size) {
-            Expect({ ParseNext() }, fun (state: ParseState): ParseState {
+            Expect({ ParseNext() }) {state ->
                 nodes += state.node
-                return state
-            })
+                state
+            }
         }
 
         return Body(nodes)

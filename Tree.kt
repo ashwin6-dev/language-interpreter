@@ -25,12 +25,12 @@ class Ident(val id: String): Node()
 
 class ListNode(val list: List<Node>): Node() {
     override fun toString(): String {
-        var s = ""
+        var s = "[ "
         for (node in list) {
-            s += "$node"
+            s += "$node, "
         }
 
-        return s
+        return s + " ]"
     }
 }
 
@@ -41,5 +41,7 @@ class BinOp(val op: String, val left: Node, val right: Node): Node()
 class WhileNode(val expr: Node, val body: Node): Node()
 class ForNode(val id: String, val iter: Node, val body: Node): Node()
 class IfNode(val expr: Node, val trueBranch: Node, val falseBranch: Node): Node()
+class ReturnNode(val expr: Node): Node()
 class Body(val block: Block): Node()
 class StdFun(val f: (args: List<Node>, env: Env) -> Env): Node()
+class Null: Node()
